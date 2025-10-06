@@ -16,7 +16,7 @@ from rave_gui.ui.widgets.log_viewer import LogViewer
 class NewDatasetWizard(QWizard):
     """Wizard for creating a new dataset."""
     
-    def __init__(self, parent=None, db_connection=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Create New Dataset")
         self.db = db_connection
@@ -76,11 +76,22 @@ class IntroPage(QWizardPage):
 class InputFilesPage(QWizardPage):
     """Page for selecting input audio files."""
     
+    # Supported audio formats
+    AUDIO_EXTENSIONS = ['.wav', '.mp3', '.flac', '.ogg', '.aif', '.aiff', '.opus', '.aac']
+    
     def __init__(self):
         super().__init__()
         self.setTitle("Select Audio Files")
         self.setSubTitle("Choose the folder containing audio files to include in your dataset.")
         
+        self.audio_files = []
+        self.init_ui()
+        
+        # Enable drag and drop
+        self.setAcceptDrops(True)
+        
+    def init_ui(self):
+        """Initialize the user interface."""
         layout = QVBoxLayout()
         
         # Input path selection
@@ -148,7 +159,7 @@ class ParametersPage(QWizardPage):
     def __init__(self):
         super().__init__()
         self.setTitle("Dataset Parameters")
-        self.setSubTitle("Configure preprocessing parameters.")
+        self.setSubTitle("Configure preprocessing parameters for your dataset.")
         
         layout = QFormLayout()
         
@@ -160,6 +171,7 @@ class ParametersPage(QWizardPage):
         # Sample rate
         self.sample_rate_spin = QSpinBox()
         self.sample_rate_spin.setRange(8000, 192000)
+        self.sample_rate_spin.setSingleStep(100)
         self.sample_rate_spin.setValue(44100)
         self.sample_rate_spin.setSuffix(" Hz")
         layout.addRow("Sample Rate:", self.sample_rate_spin)
@@ -207,6 +219,8 @@ class PreprocessingPage(QWizardPage):
         self.setSubTitle("Processing audio files...")
         self.setFinalPage(True)
         
+    def init_ui(self):
+        """Initialize the user interface."""
         layout = QVBoxLayout()
         
         # Progress bar
