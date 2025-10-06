@@ -2,97 +2,9 @@
 Training management backend.
 """
 import json
-import re
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
-from PyQt6.QtCore import pyqtSignal
-from rave_gui.core.process import ProcessThread, RAVEProcess
-
-
-class TrainingProcess(ProcessThread):
-    """Thread for running RAVE training with metrics parsing."""
-    
-    metrics_update = pyqtSignal(dict)  # Parsed metrics from logs
-    step_update = pyqtSignal(int, int)  # current_step, total_steps
-    
-    def __init__(self, config: Dict):
-        """Initialize training process.
-        
-        Args:
-            config: Training configuration containing:
-                - dataset_path: Path to dataset
-                - name: Training run name
-                - config: RAVE config name
-                - overrides: Optional list of config overrides
-        """
-        self.training_config = config
-        
-        # Get dataset path
-        dataset_path = Path(config['dataset_path'])
-        
-        # Build training command
-        overrides = config.get('overrides', [])
-        if config.get('max_steps'):
-            overrides.append(f"PHASE.max_steps={config['max_steps']}")
-        
-        command = RAVEProcess.train(
-            config=config.get('config', 'v2'),
-            db_path=dataset_path,
-            name=config['name'],
-            overrides=overrides if overrides else None
-        )
-        
-        super().__init__(command)
-        
-        # Metrics patterns for parsing
-        self.metric_patterns = {
-            'loss': re.compile(r'loss[:\s]+([0-9.]+)', re.IGNORECASE),
-            'step': re.compile(r'step[:\s]+(\d+)', re.IGNORECASE),
-            'epoch': re.compile(r'epoch[:\s]+(\d+)', re.IGNORECASE),
-            'lr': re.compile(r'lr[:\s]+([0-9.e-]+)', re.IGNORECASE),
-            'val_loss': re.compile(r'val[_\s]loss[:\s]+([0-9.]+)', re.IGNORECASE),
-        }
-        
-        self.current_metrics = {}
-    
-    def parse_progress(self, line: str) -> tuple[Optional[int], str]:
-        """Parse training progress from log line.
-        
-        Args:
-            line: Log line
-            
-        Returns:
-            Tuple of (percentage, message) or (None, line)
-        """
-        # Parse metrics from the line
-        metrics = {}
-        for name, pattern in self.metric_patterns.items():
-            match = pattern.search(line)
-            if match:
-                try:
-                    value = float(match.group(1))
-                    metrics[name] = value
-                except (ValueError, IndexError):
-                    pass
-        
-        # Update current metrics and emit signal if we found any
-        if metrics:
-            self.current_metrics.update(metrics)
-            self.metrics_update.emit(metrics)
-            
-            # If we have step info, emit step update
-            if 'step' in metrics:
-                step = int(metrics['step'])
-                # Estimate total steps if max_steps was provided
-                total = self.training_config.get('max_steps', 500000)
-                self.step_update.emit(step, total)
-                
-                # Calculate progress percentage
-                progress = int((step / total) * 100) if total > 0 else 0
-                return progress, f"Step {step}/{total}"
-        
-        return None, line
 
 
 class TrainingManager:
@@ -105,7 +17,6 @@ class TrainingManager:
             db_connection: Database connection object
         """
         self.db = db_connection
-        self.active_processes = {}  # experiment_id -> TrainingProcess
         
     def start_training(self, config: Dict) -> int:
         """Start a new training run.
@@ -138,6 +49,34 @@ class TrainingManager:
         )
         experiment_id = cursor.lastrowid
         return experiment_id
+    
+    def build_training_command(self, config: Dict) -> List[str]:
+        """Build RAVE training command from configuration.
+        
+        Args:
+            config: Training configuration
+            
+        Returns:
+            Command list for subprocess
+        """
+        from rave_gui.core.process import RAVEProcess
+        
+        # Get dataset path
+        dataset_path = Path(config['dataset_path'])
+        
+        # Build overrides
+        overrides = config.get('overrides', [])
+        if config.get('max_steps'):
+            overrides.append(f"PHASE.max_steps={config['max_steps']}")
+        
+        command = RAVEProcess.train(
+            config=config.get('config', 'v2'),
+            db_path=dataset_path,
+            name=config['name'],
+            overrides=overrides if overrides else None
+        )
+        
+        return command
     
     def update_experiment_status(self, experiment_id: int, status: str, 
                                  completed_at: Optional[str] = None):
@@ -172,6 +111,67 @@ class TrainingManager:
         )
     
     def get_experiment(self, experiment_id: int) -> Optional[Dict]:
+        """Get experiment by ID.
+        
+        Args:
+            experiment_id: Experiment ID
+            
+        Returns:
+            Experiment dictionary or None
+        """
+        result = self.db.fetch_one(
+            "SELECT * FROM experiments WHERE id = ?",
+            (experiment_id,)
+        )
+        if result:
+            # Parse JSON fields
+            if result.get('config'):
+                result['config'] = json.loads(result['config'])
+            if result.get('metrics'):
+                result['metrics'] = json.loads(result['metrics'])
+        return result
+    
+    def list_experiments(self, project_id: Optional[int] = None) -> List[Dict]:
+        """List all experiments, optionally filtered by project.
+        
+        Args:
+            project_id: Optional project ID to filter by
+            
+        Returns:
+            List of experiment dictionaries
+        """
+        if project_id:
+            results = self.db.fetch_all(
+                "SELECT * FROM experiments WHERE project_id = ? ORDER BY started_at DESC",
+                (project_id,)
+            )
+        else:
+            results = self.db.fetch_all(
+                "SELECT * FROM experiments ORDER BY started_at DESC"
+            )
+        
+        # Parse JSON fields for each result
+        for result in results:
+            if result.get('config'):
+                result['config'] = json.loads(result['config'])
+            if result.get('metrics'):
+                result['metrics'] = json.loads(result['metrics'])
+        
+        return results
+    
+    def get_training_metrics(self, experiment_id: int) -> Dict:
+        """Get training metrics for an experiment.
+        
+        Args:
+            experiment_id: Experiment ID
+            
+        Returns:
+            Metrics dictionary
+        """
+        experiment = self.get_experiment(experiment_id)
+        if experiment and experiment.get('metrics'):
+            return experiment['metrics']
+        return {}
         """Get experiment by ID.
         
         Args:

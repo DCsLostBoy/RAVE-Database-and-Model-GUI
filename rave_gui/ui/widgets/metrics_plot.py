@@ -42,7 +42,6 @@ class MetricsPlot(QWidget):
         self.ax_loss.set_ylabel('Loss')
         self.ax_loss.set_title('Training Loss')
         self.ax_loss.grid(True, alpha=0.3)
-        self.ax_loss.legend()
         
         # Configure learning rate plot
         self.ax_lr.set_xlabel('Step')
@@ -100,6 +99,7 @@ class MetricsPlot(QWidget):
                 self.ax_loss.plot(val_steps, val_values, label='Validation Loss', 
                                  color='orange', linestyle='--')
         
+        # Add legend after plotting data
         self.ax_loss.legend()
         
         # Clear and update learning rate plot

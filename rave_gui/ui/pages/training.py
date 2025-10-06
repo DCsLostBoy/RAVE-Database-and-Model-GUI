@@ -1,6 +1,7 @@
 """
 Training page - Configure and monitor model training.
 """
+from functools import partial
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                               QPushButton, QTableWidget, QTableWidgetItem,
                               QProgressBar, QTextEdit, QSplitter, QGroupBox)
@@ -8,7 +9,8 @@ from PyQt6.QtCore import Qt, QTimer
 from datetime import datetime
 from rave_gui.ui.dialogs.new_training import NewTrainingWizard
 from rave_gui.ui.widgets.metrics_plot import MetricsPlot
-from rave_gui.backend.training import TrainingManager, TrainingProcess
+from rave_gui.ui.processes.training_process import TrainingProcess
+from rave_gui.backend.training import TrainingManager
 from rave_gui.core.signals import AppSignals
 
 
@@ -20,12 +22,12 @@ class TrainingPage(QWidget):
         self.db = db_connection
         self.training_manager = TrainingManager(db_connection)
         self.signals = AppSignals()
-        self.active_training_widgets = {}  # experiment_id -> widget
+        self.active_processes = {}  # experiment_id -> TrainingProcess
         
         self.init_ui()
         self.connect_signals()
         self.load_experiments()
-        
+    
     def init_ui(self):
         """Initialize the user interface."""
         layout = QVBoxLayout(self)
@@ -131,25 +133,28 @@ class TrainingPage(QWidget):
             # Create experiment in database
             experiment_id = self.training_manager.start_training(config)
             
-            # Create and start training process
-            training_process = TrainingProcess(config)
+            # Build command using backend manager
+            command = self.training_manager.build_training_command(config)
             
-            # Connect training process signals
+            # Create and start training process (UI layer)
+            training_process = TrainingProcess(command, config)
+            
+            # Connect training process signals with proper variable capture
             training_process.output.connect(
-                lambda line, eid=experiment_id: self.on_training_output(eid, line)
+                partial(self.on_training_output, experiment_id)
             )
             training_process.metrics_update.connect(
-                lambda metrics, eid=experiment_id: self.on_metrics_update(eid, metrics)
+                partial(self.on_metrics_update, experiment_id)
             )
             training_process.step_update.connect(
-                lambda step, total, eid=experiment_id: self.on_step_update(eid, step, total)
+                partial(self.on_step_update, experiment_id)
             )
             training_process.finished.connect(
-                lambda success, msg, eid=experiment_id: self.on_training_finished(eid, success, msg)
+                partial(self.on_training_finished, experiment_id)
             )
             
-            # Register process with manager
-            self.training_manager.register_process(experiment_id, training_process)
+            # Store process reference
+            self.active_processes[experiment_id] = training_process
             
             # Start the training
             training_process.start()
@@ -187,7 +192,7 @@ class TrainingPage(QWidget):
             if exp['status'] == 'running':
                 stop_btn = QPushButton("Stop")
                 stop_btn.clicked.connect(
-                    lambda checked, eid=exp['id']: self.stop_training(eid)
+                    partial(self.stop_training, exp['id'])
                 )
                 self.experiments_table.setCellWidget(i, 4, stop_btn)
         
@@ -243,7 +248,15 @@ class TrainingPage(QWidget):
     
     def stop_training(self, experiment_id):
         """Stop a training run."""
-        if self.training_manager.stop_training(experiment_id):
+        if experiment_id in self.active_processes:
+            process = self.active_processes[experiment_id]
+            process.stop()
+            self.training_manager.update_experiment_status(
+                experiment_id, 
+                'stopped', 
+                datetime.now().isoformat()
+            )
+            del self.active_processes[experiment_id]
             self.signals.training_stopped.emit(experiment_id)
             self.load_experiments()
     
@@ -299,7 +312,10 @@ class TrainingPage(QWidget):
             status, 
             datetime.now().isoformat()
         )
-        self.training_manager.unregister_process(experiment_id)
+        
+        # Remove process reference
+        if experiment_id in self.active_processes:
+            del self.active_processes[experiment_id]
         
         self.signals.training_completed.emit(experiment_id, success)
         

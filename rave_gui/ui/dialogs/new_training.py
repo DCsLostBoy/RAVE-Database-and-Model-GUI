@@ -158,7 +158,7 @@ class ConfigSelectionPage(QWizardPage):
         overrides = []
         # Add modifier configs if selected
         for item in self.modifiers.selectedItems():
-            overrides.append(f"--config {item.text()}")
+            overrides.append(item.text())
         return overrides
 
 
