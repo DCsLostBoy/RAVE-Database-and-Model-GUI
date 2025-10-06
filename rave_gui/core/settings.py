@@ -2,6 +2,7 @@
 Application settings management.
 """
 import json
+import base64
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,6 +46,11 @@ class SettingsManager:
         try:
             with open(self.settings_path, 'r', encoding='utf-8') as f:
                 settings = json.load(f)
+            
+            # Convert base64-encoded bytes back to bytes
+            for key, value in list(settings.items()):
+                if isinstance(value, dict) and value.get("_type") == "bytes":
+                    settings[key] = base64.b64decode(value["_value"])
                 
             # Merge with defaults to ensure all keys exist
             merged = self.DEFAULT_SETTINGS.copy()
@@ -58,8 +64,19 @@ class SettingsManager:
     def save_settings(self):
         """Save settings to file."""
         try:
+            # Convert any bytes values to base64 for JSON serialization
+            serializable_settings = {}
+            for key, value in self.settings.items():
+                if isinstance(value, bytes):
+                    serializable_settings[key] = {
+                        "_type": "bytes",
+                        "_value": base64.b64encode(value).decode('utf-8')
+                    }
+                else:
+                    serializable_settings[key] = value
+            
             with open(self.settings_path, 'w', encoding='utf-8') as f:
-                json.dump(self.settings, f, indent=2)
+                json.dump(serializable_settings, f, indent=2)
         except IOError as e:
             print(f"Failed to save settings: {e}")
     
