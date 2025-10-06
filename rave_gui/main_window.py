@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         self.pages = QStackedWidget()
         self.pages.addWidget(DashboardPage())
         self.pages.addWidget(DatasetsPage())
-        self.pages.addWidget(TrainingPage())
+        self.pages.addWidget(TrainingPage(self.db))
         self.pages.addWidget(ModelsPage())
         self.pages.addWidget(ExportPage())
         main_layout.addWidget(self.pages)
