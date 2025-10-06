@@ -2,7 +2,8 @@
 Datasets page - Manage and view audio datasets.
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-                              QTableWidget, QLabel, QTableWidgetItem, QHeaderView)
+                              QTableWidget, QLabel, QTableWidgetItem, QHeaderView,
+                              QMessageBox)
 from PyQt6.QtCore import Qt
 from rave_gui.ui.dialogs.new_dataset import NewDatasetWizard
 from rave_gui.core.signals import AppSignals
@@ -18,6 +19,7 @@ class DatasetsPage(QWidget):
         self.db = db_connection
         self.dataset_manager = DatasetManager(db_connection) if db_connection else None
         self.signals = AppSignals()
+        self.dataset_id_map = {}  # Map row to dataset ID
         
         self.init_ui()
         self.connect_signals()
@@ -52,7 +54,23 @@ class DatasetsPage(QWidget):
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.table)
+        
+        # Action buttons
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        self.delete_btn = QPushButton("Delete Dataset")
+        self.delete_btn.clicked.connect(self.delete_selected_dataset)
+        self.delete_btn.setEnabled(False)
+        button_layout.addWidget(self.delete_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # Connect table selection change
+        self.table.itemSelectionChanged.connect(self.on_selection_changed)
         
     def connect_signals(self):
         """Connect to application signals."""
@@ -70,8 +88,12 @@ class DatasetsPage(QWidget):
             
         datasets = self.dataset_manager.list_datasets()
         self.table.setRowCount(len(datasets))
+        self.dataset_id_map.clear()
         
         for row, dataset in enumerate(datasets):
+            # Store dataset ID mapping
+            self.dataset_id_map[row] = dataset['id']
+            
             # Name
             self.table.setItem(row, 0, QTableWidgetItem(dataset['name']))
             
@@ -104,6 +126,65 @@ class DatasetsPage(QWidget):
             else:
                 created_str = "Unknown"
             self.table.setItem(row, 5, QTableWidgetItem(created_str))
+    
+    def on_selection_changed(self):
+        """Handle table selection change."""
+        has_selection = len(self.table.selectedItems()) > 0
+        self.delete_btn.setEnabled(has_selection)
+    
+    def show_context_menu(self, position):
+        """Show context menu for dataset table."""
+        from PyQt6.QtWidgets import QMenu
+        from PyQt6.QtGui import QAction
+        
+        if not self.table.itemAt(position):
+            return
+            
+        menu = QMenu()
+        
+        delete_action = QAction("Delete Dataset", self)
+        delete_action.triggered.connect(self.delete_selected_dataset)
+        menu.addAction(delete_action)
+        
+        menu.exec(self.table.viewport().mapToGlobal(position))
+    
+    def delete_selected_dataset(self):
+        """Delete the selected dataset with confirmation."""
+        selected_rows = set(item.row() for item in self.table.selectedItems())
+        if not selected_rows:
+            return
+            
+        row = list(selected_rows)[0]
+        dataset_id = self.dataset_id_map.get(row)
+        if not dataset_id:
+            return
+            
+        dataset = self.dataset_manager.get_dataset(dataset_id)
+        if not dataset:
+            return
+            
+        # Confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Delete Dataset",
+            f"Are you sure you want to delete the dataset '{dataset['name']}'?\n\n"
+            "This will remove the dataset metadata from the database.\n"
+            "Dataset files on disk will not be deleted.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            if self.dataset_manager.delete_dataset(dataset_id):
+                self.signals.dataset_deleted.emit(dataset_id)
+                self.signals.status_message.emit(f"Dataset '{dataset['name']}' deleted")
+                self.load_datasets()
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Error",
+                    f"Failed to delete dataset '{dataset['name']}'"
+                )
             
     def on_dataset_created(self, dataset_id, name):
         """Handle dataset created signal."""

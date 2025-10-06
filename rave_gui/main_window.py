@@ -76,7 +76,8 @@ class MainWindow(QMainWindow):
         # Create stacked widget for pages
         self.pages = QStackedWidget()
         self.pages.addWidget(DashboardPage())
-        self.pages.addWidget(DatasetsPage())
+        self.datasets_page = DatasetsPage(db_connection=self.db)
+        self.pages.addWidget(self.datasets_page)
         self.pages.addWidget(TrainingPage())
         self.pages.addWidget(ModelsPage())
         self.pages.addWidget(ExportPage())
@@ -122,6 +123,7 @@ class MainWindow(QMainWindow):
     def connect_signals(self):
         """Connect application signals."""
         self.signals.status_message.connect(self.show_status_message)
+        self.signals.project_changed.connect(self.on_project_changed)
         
     @pyqtSlot(int)
     def switch_page(self, index):
@@ -132,6 +134,12 @@ class MainWindow(QMainWindow):
     def show_status_message(self, message):
         """Display a status message."""
         self.status_bar.showMessage(message, 5000)
+    
+    @pyqtSlot(int)
+    def on_project_changed(self, project_id):
+        """Handle project change event."""
+        # Reload datasets page when project changes
+        self.datasets_page.load_datasets()
     
     def create_menu_bar(self):
         """Create the menu bar."""
