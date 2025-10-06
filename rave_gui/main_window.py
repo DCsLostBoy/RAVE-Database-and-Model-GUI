@@ -30,10 +30,6 @@ class MainWindow(QMainWindow):
         # Enable high-DPI scaling
         self.setAttribute(Qt.WidgetAttribute.WA_AcceptTouchEvents, False)
         
-        # Set initial size (80% of screen)
-        screen = self.screen().availableGeometry()
-        self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
-        
         # Get signals singleton
         self.signals = AppSignals()
         
@@ -52,8 +48,11 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.connect_signals()
         
-        # Show project selector on startup
-        self.show_project_selector()
+        # Restore window geometry if saved
+        self.restore_window_geometry()
+        
+        # Try to load last project or show selector
+        self.load_last_project_or_show_selector()
         
     def init_ui(self):
         """Initialize the user interface."""
@@ -76,8 +75,9 @@ class MainWindow(QMainWindow):
         # Create stacked widget for pages
         self.pages = QStackedWidget()
         self.pages.addWidget(DashboardPage())
-        self.pages.addWidget(DatasetsPage())
-        self.pages.addWidget(TrainingPage(self.db))
+        self.datasets_page = DatasetsPage(db_connection=self.db)
+        self.pages.addWidget(self.datasets_page)
+        self.pages.addWidget(TrainingPage())
         self.pages.addWidget(ModelsPage())
         self.pages.addWidget(ExportPage())
         main_layout.addWidget(self.pages)
@@ -122,6 +122,7 @@ class MainWindow(QMainWindow):
     def connect_signals(self):
         """Connect application signals."""
         self.signals.status_message.connect(self.show_status_message)
+        self.signals.project_changed.connect(self.on_project_changed)
         
     @pyqtSlot(int)
     def switch_page(self, index):
@@ -132,6 +133,12 @@ class MainWindow(QMainWindow):
     def show_status_message(self, message):
         """Display a status message."""
         self.status_bar.showMessage(message, 5000)
+    
+    @pyqtSlot(int)
+    def on_project_changed(self, project_id):
+        """Handle project change event."""
+        # Reload datasets page when project changes
+        self.datasets_page.load_datasets()
     
     def create_menu_bar(self):
         """Create the menu bar."""
@@ -186,6 +193,10 @@ class MainWindow(QMainWindow):
                 self.update_window_title()
                 self.signals.project_created.emit(project_id, name)
                 self.signals.status_message.emit(f"Project '{name}' created successfully")
+                
+                # Save as last project and add to recent
+                self.settings_manager.set("last_project_id", project_id)
+                self.settings_manager.add_recent_project(project_id)
             except ValueError as e:
                 QMessageBox.warning(self, "Error", str(e))
             except Exception as e:
@@ -202,6 +213,10 @@ class MainWindow(QMainWindow):
                 self.current_project_id = project_id
                 self.update_window_title()
                 self.signals.project_changed.emit(project_id)
+                
+                # Save as last project and add to recent
+                self.settings_manager.set("last_project_id", project_id)
+                self.settings_manager.add_recent_project(project_id)
                 
                 project = self.project_manager.get_project(project_id)
                 if project:
@@ -258,8 +273,48 @@ class MainWindow(QMainWindow):
             "<p><a href='https://github.com/acids-ircam/RAVE'>RAVE on GitHub</a></p>"
         )
     
+    def restore_window_geometry(self):
+        """Restore window geometry from settings."""
+        geometry = self.settings_manager.get("window_geometry")
+        if geometry:
+            try:
+                self.restoreGeometry(geometry)
+            except Exception:
+                # If restore fails, use default size
+                screen = self.screen().availableGeometry()
+                self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
+        else:
+            # Set initial size (80% of screen)
+            screen = self.screen().availableGeometry()
+            self.resize(int(screen.width() * 0.8), int(screen.height() * 0.8))
+    
+    def load_last_project_or_show_selector(self):
+        """Load the last used project or show project selector."""
+        last_project_id = self.settings_manager.get("last_project_id")
+        
+        if last_project_id:
+            # Try to load the last project
+            project = self.project_manager.get_project(last_project_id)
+            if project:
+                self.current_project_id = last_project_id
+                self.update_window_title()
+                self.signals.project_changed.emit(last_project_id)
+                self.signals.status_message.emit(f"Loaded project: {project['name']}")
+                return
+        
+        # If no last project or it doesn't exist, show selector
+        self.show_project_selector()
+    
     def closeEvent(self, event):
         """Handle window close event."""
+        # Save window geometry
+        self.settings_manager.set("window_geometry", self.saveGeometry())
+        
+        # Save last project
+        if self.current_project_id:
+            self.settings_manager.set("last_project_id", self.current_project_id)
+            self.settings_manager.add_recent_project(self.current_project_id)
+        
         # Close database connection
         if self.db:
             self.db.close()

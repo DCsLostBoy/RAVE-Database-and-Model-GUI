@@ -3,6 +3,7 @@ Dataset operations backend.
 """
 from pathlib import Path
 from typing import Optional, List, Dict
+import json
 
 
 class DatasetManager:
@@ -20,15 +21,40 @@ class DatasetManager:
         """Create a new dataset.
         
         Args:
-            config: Dataset configuration dictionary
-            
+            config: Dataset configuration dictionary containing:
+                - name: Dataset name
+                - path: Output path for preprocessed dataset
+                - input_path: Path to input audio files
+                - project_id: Optional project ID
+                - num_samples: Number of samples (default: None)
+                - channels: Number of audio channels
+                - sample_rate: Sampling rate
+                
         Returns:
             Dataset ID
         """
-        # TODO: Implement dataset creation
-        # Store metadata in database
-        # Return dataset ID
-        pass
+        # Validate required fields
+        if not config.get('name'):
+            raise ValueError("Dataset name is required")
+        if not config.get('path'):
+            raise ValueError("Dataset path is required")
+            
+        # Insert into database
+        cursor = self.db.execute(
+            """INSERT INTO datasets 
+               (project_id, name, path, num_samples, channels, sample_rate)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (
+                config.get('project_id'),
+                config['name'],
+                str(config['path']),
+                config.get('num_samples'),
+                config.get('channels', 1),
+                config.get('sample_rate', 44100)
+            )
+        )
+        
+        return cursor.lastrowid
     
     def get_dataset(self, dataset_id: int) -> Optional[Dict]:
         """Get dataset by ID.
@@ -39,8 +65,10 @@ class DatasetManager:
         Returns:
             Dataset dictionary or None
         """
-        # TODO: Implement dataset retrieval
-        pass
+        return self.db.fetch_one(
+            "SELECT * FROM datasets WHERE id = ?",
+            (dataset_id,)
+        )
     
     def list_datasets(self, project_id: Optional[int] = None) -> List[Dict]:
         """List all datasets, optionally filtered by project.
@@ -51,8 +79,15 @@ class DatasetManager:
         Returns:
             List of dataset dictionaries
         """
-        # TODO: Implement dataset listing
-        pass
+        if project_id is not None:
+            return self.db.fetch_all(
+                "SELECT * FROM datasets WHERE project_id = ? ORDER BY created_at DESC",
+                (project_id,)
+            )
+        else:
+            return self.db.fetch_all(
+                "SELECT * FROM datasets ORDER BY created_at DESC"
+            )
     
     def delete_dataset(self, dataset_id: int) -> bool:
         """Delete a dataset.
@@ -63,8 +98,14 @@ class DatasetManager:
         Returns:
             True if successful
         """
-        # TODO: Implement dataset deletion
-        pass
+        try:
+            self.db.execute(
+                "DELETE FROM datasets WHERE id = ?",
+                (dataset_id,)
+            )
+            return True
+        except Exception:
+            return False
     
     def get_dataset_stats(self, dataset_id: int) -> Dict:
         """Get statistics for a dataset.
@@ -73,7 +114,25 @@ class DatasetManager:
             dataset_id: Dataset ID
             
         Returns:
-            Statistics dictionary
+            Statistics dictionary with keys:
+                - total_samples: Total number of samples
+                - duration_seconds: Total duration in seconds
+                - channels: Number of channels
+                - sample_rate: Sampling rate
         """
-        # TODO: Implement dataset statistics calculation
-        pass
+        dataset = self.get_dataset(dataset_id)
+        if not dataset:
+            return {}
+            
+        # Calculate duration based on samples and sample rate
+        num_samples = dataset.get('num_samples', 0)
+        sample_rate = dataset.get('sample_rate', 44100)
+        
+        duration_seconds = num_samples / sample_rate if sample_rate > 0 and num_samples else 0
+        
+        return {
+            'total_samples': num_samples,
+            'duration_seconds': duration_seconds,
+            'channels': dataset.get('channels', 1),
+            'sample_rate': sample_rate
+        }
