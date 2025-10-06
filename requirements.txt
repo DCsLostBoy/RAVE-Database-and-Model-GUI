@@ -1,3 +1,4 @@
+# Core RAVE dependencies
 absl-py>=1.2.0
 einops>=0.5.0
 gin-config
@@ -15,5 +16,32 @@ cached-conv>=2.5.0
 nn-tilde>=1.5.2
 torchaudio
 tensorboard
+
+# GUI dependencies
+PyQt6>=6.4.0
+PyQt6-WebEngine>=6.4.0
+
+# Plotting and visualization
+matplotlib>=3.6.0
+
+# Audio playback and processing
+sounddevice>=0.4.5
+soundfile>=0.11.0
+
+# File monitoring
+watchdog>=2.2.0
+
+# Database
+# sqlite3 is included in Python standard library
+
+# Testing
 pytest>=7.2.2
+pytest-qt>=4.2.0
+
+# Development tools
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# Optional/legacy
 Flask>=2.2.3

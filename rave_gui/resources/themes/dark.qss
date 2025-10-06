@@ -1,0 +1,136 @@
+/* RAVE GUI Dark Theme */
+
+QWidget {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 10pt;
+}
+
+QMainWindow {
+    background-color: #1e1e1e;
+}
+
+/* Sidebar */
+QWidget#sidebar {
+    background-color: #252526;
+    border-right: 1px solid #3e3e42;
+}
+
+QPushButton {
+    background-color: #0e639c;
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+}
+
+QPushButton:hover {
+    background-color: #1177bb;
+}
+
+QPushButton:pressed {
+    background-color: #0d5689;
+}
+
+QPushButton:checked {
+    background-color: #094771;
+}
+
+/* Tables */
+QTableWidget {
+    background-color: #1e1e1e;
+    alternate-background-color: #252526;
+    gridline-color: #3e3e42;
+    border: 1px solid #3e3e42;
+}
+
+QHeaderView::section {
+    background-color: #252526;
+    color: #d4d4d4;
+    padding: 8px;
+    border: none;
+    border-right: 1px solid #3e3e42;
+    border-bottom: 1px solid #3e3e42;
+}
+
+/* Text Inputs */
+QLineEdit, QTextEdit, QSpinBox {
+    background-color: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #3e3e42;
+    padding: 4px;
+    border-radius: 2px;
+}
+
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus {
+    border: 1px solid #0e639c;
+}
+
+/* Combo Boxes */
+QComboBox {
+    background-color: #3c3c3c;
+    color: #d4d4d4;
+    border: 1px solid #3e3e42;
+    padding: 4px;
+    border-radius: 2px;
+}
+
+QComboBox:hover {
+    border: 1px solid #0e639c;
+}
+
+/* Status Bar */
+QStatusBar {
+    background-color: #007acc;
+    color: #ffffff;
+}
+
+/* Scroll Bars */
+QScrollBar:vertical {
+    background-color: #1e1e1e;
+    width: 14px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #424242;
+    border-radius: 7px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #4e4e4e;
+}
+
+/* Progress Bars */
+QProgressBar {
+    border: 1px solid #3e3e42;
+    border-radius: 4px;
+    text-align: center;
+    background-color: #3c3c3c;
+}
+
+QProgressBar::chunk {
+    background-color: #0e639c;
+    border-radius: 3px;
+}
+
+/* Tabs */
+QTabWidget::pane {
+    border: 1px solid #3e3e42;
+}
+
+QTabBar::tab {
+    background-color: #2d2d30;
+    color: #d4d4d4;
+    padding: 8px 16px;
+    border: 1px solid #3e3e42;
+}
+
+QTabBar::tab:selected {
+    background-color: #1e1e1e;
+    border-bottom-color: #1e1e1e;
+}
+
+QTabBar::tab:hover {
+    background-color: #3e3e42;
+}

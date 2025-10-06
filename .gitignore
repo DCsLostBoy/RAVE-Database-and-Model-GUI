@@ -13,3 +13,25 @@ runs
 __version__*
 PKG-INFO
 .junit-test-report.xml
+
+# Virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# GUI specific
+*.db
+*.db-journal
+.pytest_cache/
+.mypy_cache/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

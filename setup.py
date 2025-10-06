@@ -23,6 +23,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     package_data={
         'rave/configs': ['*.gin'],
+        'rave_gui/resources': ['**/*'],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -31,6 +32,7 @@ setuptools.setup(
     ],
     entry_points={"console_scripts": [
         "rave = scripts.main_cli:main",
+        "rave-gui = rave_gui.app:main",
     ]},
     install_requires=requirements.split("\n"),
     python_requires='>=3.9',
